@@ -1,5 +1,3 @@
-# Terraform configuration with multiple issues for remediation testing
-
 terraform {
   required_providers {
     aws = {
@@ -14,7 +12,6 @@ provider "aws" {
   secret_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
 }
 
-# S3 bucket without encryption or versioning
 resource "aws_s3_bucket" "data_bucket" {
   bucket = "my-company-data-bucket-12345"
 }
@@ -28,7 +25,6 @@ resource "aws_s3_bucket_public_access_block" "data_bucket_public_access" {
   restrict_public_buckets = false
 }
 
-# Security group with overly permissive rules
 resource "aws_security_group" "web_server" {
   name        = "web-server-sg"
   description = "Security group for web server"
@@ -55,7 +51,6 @@ resource "aws_security_group" "web_server" {
   }
 }
 
-# IAM role with overly permissive policy
 resource "aws_iam_role" "admin_role" {
   name = "super-admin-role"
 
@@ -89,7 +84,6 @@ resource "aws_iam_role_policy" "admin_policy" {
   })
 }
 
-# RDS instance without encryption
 resource "aws_db_instance" "database" {
   identifier           = "production-db"
   allocated_storage    = 20
@@ -103,7 +97,6 @@ resource "aws_db_instance" "database" {
   storage_encrypted    = false
 }
 
-# EC2 instance without tags
 resource "aws_instance" "web_server" {
   ami           = "ami-0c55b159cbfafe1f0"
   instance_type = "t2.micro"
