@@ -7,9 +7,15 @@ terraform {
 }
 
 provider "aws" {
-  region     = "us-east-1"
-  access_key = "AKIAIOSFODNN7EXAMPLE"
-  secret_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+  region = "us-east-1"
+  # Credentials should be provided via environment variables (AWS_ACCESS_KEY_ID,
+  # AWS_SECRET_ACCESS_KEY) or an IAM instance profile — never hardcoded.
+}
+
+variable "db_password" {
+  description = "Password for the RDS database instance"
+  type        = string
+  sensitive   = true
 }
 
 resource "aws_s3_bucket" "data_bucket" {
@@ -19,10 +25,10 @@ resource "aws_s3_bucket" "data_bucket" {
 resource "aws_s3_bucket_public_access_block" "data_bucket_public_access" {
   bucket = aws_s3_bucket.data_bucket.id
 
-  block_public_acls       = false
-  block_public_policy     = false
-  ignore_public_acls      = false
-  restrict_public_buckets = false
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
 }
 
 resource "aws_security_group" "web_server" {
@@ -33,14 +39,14 @@ resource "aws_security_group" "web_server" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = ["10.0.0.0/8"]
   }
 
   ingress {
     from_port   = 3306
     to_port     = 3306
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = ["10.0.0.0/8"]
   }
 
   egress {
@@ -76,7 +82,13 @@ resource "aws_iam_role_policy" "admin_policy" {
     Version = "2012-10-17"
     Statement = [
       {
-        Action   = "*"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:ListBucket",
+          "ec2:Describe*",
+          "rds:Describe*"
+        ]
         Effect   = "Allow"
         Resource = "*"
       }
@@ -91,10 +103,10 @@ resource "aws_db_instance" "database" {
   engine_version       = "8.0"
   instance_class       = "db.t3.micro"
   username             = "admin"
-  password             = "SuperSecret123!"
+  password             = var.db_password
   skip_final_snapshot  = true
-  publicly_accessible  = true
-  storage_encrypted    = false
+  publicly_accessible  = false
+  storage_encrypted    = true
 }
 
 resource "aws_instance" "web_server" {
