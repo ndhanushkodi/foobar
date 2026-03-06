@@ -7,22 +7,39 @@ terraform {
 }
 
 provider "aws" {
-  region     = "us-east-1"
-  access_key = "AKIAIOSFODNN7EXAMPLE"
-  secret_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+  region = "us-east-1"
+  # Credentials should be provided via HCP Terraform workspace environment
+  # variables (AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY) or via an
+  # IAM role / OIDC identity federation — never hardcoded in source.
+}
+
+variable "db_password" {
+  description = "Password for the RDS database instance"
+  type        = string
+  sensitive   = true
 }
 
 resource "aws_s3_bucket" "data_bucket" {
   bucket = "my-company-data-bucket-12345"
 }
 
+resource "aws_s3_bucket_server_side_encryption_configuration" "data_bucket_sse" {
+  bucket = aws_s3_bucket.data_bucket.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "aws:kms"
+    }
+  }
+}
+
 resource "aws_s3_bucket_public_access_block" "data_bucket_public_access" {
   bucket = aws_s3_bucket.data_bucket.id
 
-  block_public_acls       = false
-  block_public_policy     = false
-  ignore_public_acls      = false
-  restrict_public_buckets = false
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
 }
 
 resource "aws_security_group" "web_server" {
@@ -33,14 +50,14 @@ resource "aws_security_group" "web_server" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = ["10.0.0.0/8"]  # Restrict SSH to internal network — update to your CIDR
   }
 
   ingress {
     from_port   = 3306
     to_port     = 3306
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = ["10.0.0.0/8"]  # Restrict MySQL to internal network — update to your CIDR
   }
 
   egress {
@@ -76,9 +93,16 @@ resource "aws_iam_role_policy" "admin_policy" {
     Version = "2012-10-17"
     Statement = [
       {
-        Action   = "*"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:ListBucket"
+        ]
         Effect   = "Allow"
-        Resource = "*"
+        Resource = [
+          aws_s3_bucket.data_bucket.arn,
+          "${aws_s3_bucket.data_bucket.arn}/*"
+        ]
       }
     ]
   })
@@ -91,10 +115,10 @@ resource "aws_db_instance" "database" {
   engine_version       = "8.0"
   instance_class       = "db.t3.micro"
   username             = "admin"
-  password             = "SuperSecret123!"
+  password             = var.db_password
   skip_final_snapshot  = true
-  publicly_accessible  = true
-  storage_encrypted    = false
+  publicly_accessible  = false
+  storage_encrypted    = true
 }
 
 resource "aws_instance" "web_server" {
